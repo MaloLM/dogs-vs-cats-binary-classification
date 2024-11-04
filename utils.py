@@ -3,6 +3,89 @@ import numpy as np
 import itertools
 import torch
 import random
+from sklearn.metrics import roc_curve, auc
+
+
+def plot_roc_curve(true_labels, prediction_scores):
+    """
+    Plots the ROC curve based on true labels and prediction scores.
+
+    Args:
+        true_labels (array-like): True binary labels (0 or 1).
+        prediction_scores (array-like): Prediction scores or probabilities for the positive class.
+    """
+    # Calculate FPR, TPR, and thresholds for the ROC curve
+    fpr, tpr, thresholds = roc_curve(true_labels, prediction_scores)
+    roc_auc = auc(fpr, tpr)
+
+    # Plot the ROC curve
+    plt.figure()
+    plt.plot(fpr, tpr, color='blue', label=f'Courbe ROC (AUC = {roc_auc:.2f})')
+    plt.plot([0, 1], [0, 1], color='gray', linestyle='--', label='Ligne de hasard')  # Random guess line
+    plt.xlabel('Taux de Faux Positifs (FPR)')
+    plt.ylabel('Taux de Vrais Positifs (TPR)')
+    plt.title('Courbe ROC')
+    plt.legend(loc="lower right")
+    plt.show()
+    return fpr, tpr, thresholds
+
+def plot_sensitivity_specificity_vs_thresholds(thresholds, tpr, fpr):
+    """
+    Plots sensitivity (TPR) and specificity as functions of thresholds,
+    with a vertical line indicating where TPR and specificity approximately intersect.
+
+    Args:
+        thresholds (array-like): List or array of threshold values.
+        tpr (array-like): True positive rate (sensitivity) values corresponding to each threshold.
+        fpr (array-like): False positive rate values corresponding to each threshold.
+    """
+    # Calculate specificity
+    specificity = 1 - fpr
+
+    # Find the index where TPR and specificity are closest (smallest difference)
+    diffs = np.abs(tpr - specificity)
+    intersection_index = np.argmin(diffs)
+    intersection_threshold = thresholds[intersection_index]
+
+    # Plot sensitivity (TPR) and specificity
+    plt.plot(thresholds, tpr, label="Sensibilité (TPR)", color="blue")
+    plt.plot(thresholds, specificity, label="Spécificité", color="orange")
+
+    # Add vertical line at the approximate intersection point
+    plt.axvline(x=intersection_threshold, color='black', linestyle='--', 
+                label=f"Seuil d'intersection ~ {intersection_threshold:.2f}")
+
+    # Labels and title
+    plt.xlabel("Seuil")
+    plt.ylabel("Taux")
+    plt.title("Sensibilité et Spécificité en fonction du seuil")
+    plt.legend()
+    plt.show()
+
+
+def plot_score_distribution(prediction_scores, true_labels, classes, threshold=0.5):
+    """
+    Display histogram of prediction scores for each class and plot confusion matrix.
+
+    Args:
+        prediction_scores (list): List of raw prediction scores (before thresholding).
+        true_labels (list): List of true binary labels (0 or 1).
+        classes (list): List of class names, e.g., ['Dog', 'Cat'].
+        threshold (float): Threshold to use for binary classification.
+    """
+    # Split scores by class for histogram plotting
+    dog_scores = [score[0] for score, label in zip(prediction_scores, true_labels) if label == 0]
+    cat_scores = [score[0] for score, label in zip(prediction_scores, true_labels) if label == 1]
+
+    # Plot histogram of scores with different colors for each class
+    plt.figure(figsize=(10, 5))
+    plt.hist(dog_scores, bins=30, alpha=0.5, color='blue', label=classes[0])
+    plt.hist(cat_scores, bins=30, alpha=0.5, color='orange', label=classes[1])
+    plt.xlabel('Prediction Score')
+    plt.ylabel('Frequency')
+    plt.title('Histogram of Prediction Scores by Class')
+    plt.legend(loc='upper right')
+    plt.show()
 
 def get_random_samples(dataset, n):
     """

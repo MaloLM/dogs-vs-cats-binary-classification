@@ -1,10 +1,101 @@
-import matplotlib.pyplot as plt
-import numpy as np
+import os
+import random
 import itertools
 import torch
-import random
+import numpy as np
+from PIL import Image
+import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve, auc
 
+def remove_corrupted_images(directory):
+    """
+    Remove corrupted image files from a specified directory.
+
+    Parameters:
+    directory (str): The path to the directory containing the image files.
+
+    Returns:
+    None
+    """
+    initial_count = len([name for name in os.listdir(directory) if name.endswith('.jpg')])
+    corrupted_files = []
+    
+    for filename in os.listdir(directory):
+        file_path = os.path.join(directory, filename)
+        
+        try:
+            # Open the image to check its validity
+            with Image.open(file_path) as img:
+                img.verify()  # Verify if the image can be opened
+        except (IOError, SyntaxError):
+            print(f"Corrupted file detected and removed: {file_path}")
+            corrupted_files.append(file_path)
+            os.remove(file_path)  # Remove the corrupted file
+
+    remaining_count = initial_count - len(corrupted_files)
+    print(f"Total images in {directory}: {remaining_count} (after removing {len(corrupted_files)} corrupted files)")
+
+
+def load_nearest_checkpoint(model, target_epoch, directory="./checkpoints"):
+    """
+    Load the nearest checkpoint of the model's state dictionary.
+
+    Parameters:
+    model (torch.nn.Module): The PyTorch model to load the checkpoint into.
+    target_epoch (int): The target epoch number. The function will load the nearest checkpoint
+                        that is less than or equal to this target epoch.
+    directory (str, optional): The directory where the checkpoint files are located.
+                               Defaults to "./checkpoints".
+
+    Returns:
+    int: The epoch number of the loaded checkpoint, or 0 if no suitable checkpoint was found.
+    """
+    if not os.path.exists(directory) or not os.listdir(directory):
+        print("No checkpoints found. Starting from epoch 0.")
+        return 0
+
+    available_epochs = []
+    for file in os.listdir(directory):
+        if file.endswith(".pt"):
+            try:
+                epoch = int(file.split(".")[0])
+                available_epochs.append(epoch)
+            except ValueError:
+                pass
+
+    if not available_epochs:
+        print("No checkpoints found. Starting from epoch 0.")
+        return 0
+
+    nearest_epoch = max((epoch for epoch in available_epochs if epoch <= target_epoch), default=None)
+
+    if nearest_epoch is not None:
+        checkpoint_path = os.path.join(directory, f"{nearest_epoch}.pt")
+        model.load_state_dict(torch.load(checkpoint_path))
+        print(f"Checkpoint loaded: {checkpoint_path} (Epoch {nearest_epoch})")
+        return nearest_epoch
+    else:
+        print("No suitable checkpoint found. Starting from epoch 0.")
+        return 0
+
+def save_checkpoint(model, epoch, directory="./checkpoints"):
+    """
+    Save a checkpoint of the model's state dictionary.
+
+    Parameters:
+    model (torch.nn.Module): The PyTorch model to save.
+    epoch (int): The current epoch number, used for naming the checkpoint file.
+    directory (str, optional): The directory where the checkpoint file will be saved.
+                               Defaults to "./checkpoints".
+
+    Returns:
+    None
+    """
+    os.makedirs(directory, exist_ok=True)
+    
+    filename = os.path.join(directory, f"{epoch}.pt")
+    torch.save(model.state_dict(), filename)
+    print(f"Checkpoint saved: {filename}")
 
 def plot_roc_curve(true_labels, prediction_scores):
     """
@@ -61,6 +152,8 @@ def plot_sensitivity_specificity_vs_thresholds(thresholds, tpr, fpr):
     plt.title("Sensibilité et Spécificité en fonction du seuil")
     plt.legend()
     plt.show()
+    
+    return intersection_threshold
 
 
 def plot_score_distribution(prediction_scores, true_labels, classes, threshold=0.5):
@@ -188,6 +281,33 @@ def show_random_samples(dataset, class_names, num_samples=8):
             image = image.squeeze(0)  # Retire le canal unique pour le niveau de gris
         
         axes[i].imshow(image, cmap="gray" if len(image.shape) == 2 else None)  # Mode gris
+        axes[i].set_title(class_names[label])
+        axes[i].axis("off")
+
+    plt.tight_layout()
+
+
+# Fonction d'affichage, adaptée pour les images en couleur
+def show_colored_random_samples(dataset, class_names, num_samples=8):
+    """
+    Affiche un échantillon aléatoire d'images d'un dataset PyTorch.
+    
+    :param dataset: PyTorch Dataset ou Subset à partir duquel échantillonner
+    :param class_names: Liste des noms des classes (ex. ["Dog", "Cat"])
+    :param num_samples: Nombre d'images à afficher (par défaut : 8)
+    """
+    # Charger un batch aléatoire
+    indices = torch.randint(len(dataset), size=(num_samples,))
+    samples = [dataset[i] for i in indices]
+    
+    fig, axes = plt.subplots(1, num_samples, figsize=(15, 3))
+    for i, (image, label) in enumerate(samples):
+        # Convertir les images normalisées en numpy pour affichage
+        image = image.permute(1, 2, 0).numpy()  # Revenir à HxWxC
+        image = image * [0.229, 0.224, 0.225] + [0.485, 0.456, 0.406]  # Dé-normalisation
+        image = np.clip(image, 0, 1)  # Limiter les valeurs entre 0 et 1
+
+        axes[i].imshow(image)  # Afficher en couleur
         axes[i].set_title(class_names[label])
         axes[i].axis("off")
 

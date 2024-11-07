@@ -1,11 +1,94 @@
 import os
+import json
 import random
+import datetime
 import itertools
 import torch
 import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve, auc
+
+
+def save_training_data(file_path, hyperparams, losses, accuracies, val_accuracies):
+    """
+    Sauvegarde les hyperparamètres et les données d'entraînement dans un fichier JSON.
+    """
+    # Ajout du timestamp pour identifier cet entrainement
+    timestamp = datetime.datetime.now().isoformat()
+
+    # Structure des données
+    data = {
+        'timestamp': timestamp,
+        'hyperparams': hyperparams,
+        'losses': losses,
+        'accuracies': accuracies,
+        'val_accuracies': val_accuracies
+    }
+
+    # Lecture du fichier existant (s'il existe) et ajout des nouvelles données
+    try:
+        with open(file_path, 'r') as f:
+            all_data = json.load(f)
+    except FileNotFoundError:
+        all_data = {}
+
+    # Ajout des données d'entrainement sous le timestamp comme clé
+    all_data[timestamp] = data
+
+    # Écriture des données mises à jour dans le fichier
+    with open(file_path, 'w') as f:
+        json.dump(all_data, f, indent=4)
+
+
+def load_training_data(file_path):
+    """
+    Charge les données d'entraînement à partir du fichier JSON.
+    """
+    with open(file_path, 'r') as f:
+        all_data = json.load(f)
+    return all_data
+
+
+def plot_training_data(all_data):
+    """
+    Affiche les données d'entraînement (loss, accuracy et validation accuracy) 
+    pour chaque session d'entraînement sous forme de graphiques côte à côte.
+    Affiche aussi les hyperparamètres de chaque session.
+    """
+    num_trainings = len(all_data)
+    fig, axs = plt.subplots(1, 3, figsize=(18, 5))
+
+    # Graphiques de losses, accuracies, et val_accuracies
+    for timestamp, training_data in all_data.items():
+        losses = training_data['losses']
+        accuracies = training_data['accuracies']
+        val_accuracies = training_data['val_accuracies']
+
+        # Tracer chaque courbe avec le timestamp comme légende
+        axs[0].plot(losses, label=timestamp)
+        axs[1].plot(accuracies, label=timestamp)
+        axs[2].plot(val_accuracies, label=timestamp)
+
+    # Configuration des sous-graphiques
+    axs[0].set_title('Loss')
+    axs[1].set_title('Training Accuracy')
+    axs[2].set_title('Validation Accuracy')
+    for ax in axs:
+        ax.legend()
+        ax.set_xlabel('Epochs')
+
+    plt.tight_layout()
+    plt.show()
+
+    # Affichage des hyperparamètres pour chaque entraînement
+    print("Hyperparamètres des différents entraînements :\n")
+    for timestamp, training_data in all_data.items():
+        print(f"Timestamp: {timestamp}")
+        for param, value in training_data['hyperparams'].items():
+            print(f"{param}: {value}")
+        print("-" * 30)
+
 
 def remove_corrupted_images(directory):
     """
@@ -17,12 +100,13 @@ def remove_corrupted_images(directory):
     Returns:
     None
     """
-    initial_count = len([name for name in os.listdir(directory) if name.endswith('.jpg')])
+    initial_count = len([name for name in os.listdir(
+        directory) if name.endswith('.jpg')])
     corrupted_files = []
-    
+
     for filename in os.listdir(directory):
         file_path = os.path.join(directory, filename)
-        
+
         try:
             # Open the image to check its validity
             with Image.open(file_path) as img:
@@ -33,7 +117,8 @@ def remove_corrupted_images(directory):
             os.remove(file_path)  # Remove the corrupted file
 
     remaining_count = initial_count - len(corrupted_files)
-    print(f"Total images in {directory}: {remaining_count} (after removing {len(corrupted_files)} corrupted files)")
+    print(f"Total images in {directory}: {
+          remaining_count} (after removing {len(corrupted_files)} corrupted files)")
 
 
 def load_nearest_checkpoint(model, target_epoch, directory="./checkpoints"):
@@ -67,7 +152,8 @@ def load_nearest_checkpoint(model, target_epoch, directory="./checkpoints"):
         print("No checkpoints found. Starting from epoch 0.")
         return 0
 
-    nearest_epoch = max((epoch for epoch in available_epochs if epoch <= target_epoch), default=None)
+    nearest_epoch = max(
+        (epoch for epoch in available_epochs if epoch <= target_epoch), default=None)
 
     if nearest_epoch is not None:
         checkpoint_path = os.path.join(directory, f"{nearest_epoch}.pt")
@@ -77,6 +163,7 @@ def load_nearest_checkpoint(model, target_epoch, directory="./checkpoints"):
     else:
         print("No suitable checkpoint found. Starting from epoch 0.")
         return 0
+
 
 def save_checkpoint(model, epoch, directory="./checkpoints"):
     """
@@ -92,10 +179,11 @@ def save_checkpoint(model, epoch, directory="./checkpoints"):
     None
     """
     os.makedirs(directory, exist_ok=True)
-    
+
     filename = os.path.join(directory, f"{epoch}.pt")
     torch.save(model.state_dict(), filename)
     print(f"Checkpoint saved: {filename}")
+
 
 def plot_roc_curve(true_labels, prediction_scores):
     """
@@ -112,13 +200,15 @@ def plot_roc_curve(true_labels, prediction_scores):
     # Plot the ROC curve
     plt.figure()
     plt.plot(fpr, tpr, color='blue', label=f'Courbe ROC (AUC = {roc_auc:.2f})')
-    plt.plot([0, 1], [0, 1], color='gray', linestyle='--', label='Ligne de hasard')  # Random guess line
+    plt.plot([0, 1], [0, 1], color='gray', linestyle='--',
+             label='Ligne de hasard')  # Random guess line
     plt.xlabel('Taux de Faux Positifs (FPR)')
     plt.ylabel('Taux de Vrais Positifs (TPR)')
     plt.title('Courbe ROC')
     plt.legend(loc="lower right")
     plt.show()
     return fpr, tpr, thresholds
+
 
 def plot_sensitivity_specificity_vs_thresholds(thresholds, tpr, fpr):
     """
@@ -143,7 +233,7 @@ def plot_sensitivity_specificity_vs_thresholds(thresholds, tpr, fpr):
     plt.plot(thresholds, specificity, label="Spécificité", color="orange")
 
     # Add vertical line at the approximate intersection point
-    plt.axvline(x=intersection_threshold, color='black', linestyle='--', 
+    plt.axvline(x=intersection_threshold, color='black', linestyle='--',
                 label=f"Seuil d'intersection ~ {intersection_threshold:.2f}")
 
     # Labels and title
@@ -152,7 +242,7 @@ def plot_sensitivity_specificity_vs_thresholds(thresholds, tpr, fpr):
     plt.title("Sensibilité et Spécificité en fonction du seuil")
     plt.legend()
     plt.show()
-    
+
     return intersection_threshold
 
 
@@ -167,8 +257,10 @@ def plot_score_distribution(prediction_scores, true_labels, classes, threshold=0
         threshold (float): Threshold to use for binary classification.
     """
     # Split scores by class for histogram plotting
-    dog_scores = [score[0] for score, label in zip(prediction_scores, true_labels) if label == 0]
-    cat_scores = [score[0] for score, label in zip(prediction_scores, true_labels) if label == 1]
+    dog_scores = [score[0] for score, label in zip(
+        prediction_scores, true_labels) if label == 0]
+    cat_scores = [score[0] for score, label in zip(
+        prediction_scores, true_labels) if label == 1]
 
     # Plot histogram of scores with different colors for each class
     plt.figure(figsize=(10, 5))
@@ -179,6 +271,7 @@ def plot_score_distribution(prediction_scores, true_labels, classes, threshold=0
     plt.title('Histogram of Prediction Scores by Class')
     plt.legend(loc='upper right')
     plt.show()
+
 
 def get_random_samples(dataset, n):
     """
@@ -200,6 +293,7 @@ def get_random_samples(dataset, n):
         X.append(image)
         y.append(label)
     return X, y
+
 
 def plot_confusion_matrix(cm, classes=["Dog", "Cat"], normalize=False, title='Confusion matrix', cmap=plt.cm.Blues):
     """
@@ -234,9 +328,10 @@ def plot_confusion_matrix(cm, classes=["Dog", "Cat"], normalize=False, title='Co
     plt.xlabel('Predicted label')
     plt.show()
 
+
 def plot_training_metrics(losses, accuracies, val_accuracies):
     fig, ax = plt.subplots(1, 3, figsize=(16, 5))
-    
+
     # loss
     ax[0].plot(losses, label='Loss', color='orange')
     ax[0].set_title('Training loss')
@@ -265,7 +360,7 @@ def plot_training_metrics(losses, accuracies, val_accuracies):
 def show_random_samples(dataset, class_names, num_samples=8):
     """
     Affiche un échantillon aléatoire d'images d'un dataset PyTorch.
-    
+
     :param dataset: PyTorch Dataset ou Subset à partir duquel échantillonner
     :param class_names: Liste des noms des classes (ex. ["Dog", "Cat"])
     :param num_samples: Nombre d'images à afficher (par défaut : 8)
@@ -273,14 +368,16 @@ def show_random_samples(dataset, class_names, num_samples=8):
     # Charger un batch aléatoire
     indices = torch.randint(len(dataset), size=(num_samples,))
     samples = [dataset[i] for i in indices]
-    
+
     fig, axes = plt.subplots(1, num_samples, figsize=(15, 3))
     for i, (image, label) in enumerate(samples):
         # Enlever la dimension supplémentaire pour les images en niveaux de gris (1 canal)
         if image.shape[0] == 1:  # Vérifie si l'image est en niveaux de gris
-            image = image.squeeze(0)  # Retire le canal unique pour le niveau de gris
-        
-        axes[i].imshow(image, cmap="gray" if len(image.shape) == 2 else None)  # Mode gris
+            # Retire le canal unique pour le niveau de gris
+            image = image.squeeze(0)
+
+        axes[i].imshow(image, cmap="gray" if len(
+            image.shape) == 2 else None)  # Mode gris
         axes[i].set_title(class_names[label])
         axes[i].axis("off")
 
@@ -291,7 +388,7 @@ def show_random_samples(dataset, class_names, num_samples=8):
 def show_colored_random_samples(dataset, class_names, num_samples=8):
     """
     Affiche un échantillon aléatoire d'images d'un dataset PyTorch.
-    
+
     :param dataset: PyTorch Dataset ou Subset à partir duquel échantillonner
     :param class_names: Liste des noms des classes (ex. ["Dog", "Cat"])
     :param num_samples: Nombre d'images à afficher (par défaut : 8)
@@ -299,12 +396,13 @@ def show_colored_random_samples(dataset, class_names, num_samples=8):
     # Charger un batch aléatoire
     indices = torch.randint(len(dataset), size=(num_samples,))
     samples = [dataset[i] for i in indices]
-    
+
     fig, axes = plt.subplots(1, num_samples, figsize=(15, 3))
     for i, (image, label) in enumerate(samples):
         # Convertir les images normalisées en numpy pour affichage
         image = image.permute(1, 2, 0).numpy()  # Revenir à HxWxC
-        image = image * [0.229, 0.224, 0.225] + [0.485, 0.456, 0.406]  # Dé-normalisation
+        image = image * [0.229, 0.224, 0.225] + \
+            [0.485, 0.456, 0.406]  # Dé-normalisation
         image = np.clip(image, 0, 1)  # Limiter les valeurs entre 0 et 1
 
         axes[i].imshow(image)  # Afficher en couleur

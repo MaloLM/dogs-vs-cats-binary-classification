@@ -9,15 +9,13 @@ from PIL import Image
 import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve, auc
 
-
 def save_training_data(file_path, hyperparams, losses, accuracies, val_accuracies):
     """
-    Sauvegarde les hyperparamètres et les données d'entraînement dans un fichier JSON.
+    Saves the hyperparameters and training data into a JSON file.
+    Creates the directory for the file if it doesn't exist.
     """
-    # Ajout du timestamp pour identifier cet entrainement
     timestamp = datetime.datetime.now().isoformat()
 
-    # Structure des données
     data = {
         'timestamp': timestamp,
         'hyperparams': hyperparams,
@@ -26,51 +24,48 @@ def save_training_data(file_path, hyperparams, losses, accuracies, val_accuracie
         'val_accuracies': val_accuracies
     }
 
-    # Lecture du fichier existant (s'il existe) et ajout des nouvelles données
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
     try:
         with open(file_path, 'r') as f:
             all_data = json.load(f)
     except FileNotFoundError:
         all_data = {}
 
-    # Ajout des données d'entrainement sous le timestamp comme clé
     all_data[timestamp] = data
 
-    # Écriture des données mises à jour dans le fichier
     with open(file_path, 'w') as f:
         json.dump(all_data, f, indent=4)
 
 
+
+
 def load_training_data(file_path):
     """
-    Charge les données d'entraînement à partir du fichier JSON.
+    Loads the training data from the JSON file.
     """
     with open(file_path, 'r') as f:
         all_data = json.load(f)
     return all_data
 
-
 def plot_training_data(all_data):
     """
-    Affiche les données d'entraînement (loss, accuracy et validation accuracy) 
-    pour chaque session d'entraînement sous forme de graphiques côte à côte.
-    Affiche aussi les hyperparamètres de chaque session.
+    Displays the training data (loss, accuracy, and validation accuracy)
+    for each training session as side-by-side graphs.
+    Also displays the hyperparameters for each session.
     """
     num_trainings = len(all_data)
     fig, axs = plt.subplots(1, 3, figsize=(18, 5))
 
-    # Graphiques de losses, accuracies, et val_accuracies
     for timestamp, training_data in all_data.items():
         losses = training_data['losses']
         accuracies = training_data['accuracies']
         val_accuracies = training_data['val_accuracies']
 
-        # Tracer chaque courbe avec le timestamp comme légende
         axs[0].plot(losses, label=timestamp)
         axs[1].plot(accuracies, label=timestamp)
         axs[2].plot(val_accuracies, label=timestamp)
 
-    # Configuration des sous-graphiques
     axs[0].set_title('Loss')
     axs[1].set_title('Training Accuracy')
     axs[2].set_title('Validation Accuracy')
@@ -81,8 +76,7 @@ def plot_training_data(all_data):
     plt.tight_layout()
     plt.show()
 
-    # Affichage des hyperparamètres pour chaque entraînement
-    print("Hyperparamètres des différents entraînements :\n")
+    print("Hyperparameters for different trainings:\n")
     for timestamp, training_data in all_data.items():
         print(f"Timestamp: {timestamp}")
         for param, value in training_data['hyperparams'].items():
@@ -108,13 +102,12 @@ def remove_corrupted_images(directory):
         file_path = os.path.join(directory, filename)
 
         try:
-            # Open the image to check its validity
             with Image.open(file_path) as img:
-                img.verify()  # Verify if the image can be opened
+                img.verify()
         except (IOError, SyntaxError):
             print(f"Corrupted file detected and removed: {file_path}")
             corrupted_files.append(file_path)
-            os.remove(file_path)  # Remove the corrupted file
+            os.remove(file_path)
 
     remaining_count = initial_count - len(corrupted_files)
     print(f"Total images in {directory}: {
@@ -193,18 +186,17 @@ def plot_roc_curve(true_labels, prediction_scores):
         true_labels (array-like): True binary labels (0 or 1).
         prediction_scores (array-like): Prediction scores or probabilities for the positive class.
     """
-    # Calculate FPR, TPR, and thresholds for the ROC curve
     fpr, tpr, thresholds = roc_curve(true_labels, prediction_scores)
     roc_auc = auc(fpr, tpr)
 
-    # Plot the ROC curve
     plt.figure()
     plt.plot(fpr, tpr, color='blue', label=f'Courbe ROC (AUC = {roc_auc:.2f})')
     plt.plot([0, 1], [0, 1], color='gray', linestyle='--',
-             label='Ligne de hasard')  # Random guess line
-    plt.xlabel('Taux de Faux Positifs (FPR)')
-    plt.ylabel('Taux de Vrais Positifs (TPR)')
-    plt.title('Courbe ROC')
+             label='Line of No Discrimination')
+    plt.xlabel('False Positive Rate (FPR)')
+    plt.ylabel('True Positive Rate (TPR)')
+
+    plt.title('ROC curve')
     plt.legend(loc="lower right")
     plt.show()
     return fpr, tpr, thresholds
@@ -229,17 +221,17 @@ def plot_sensitivity_specificity_vs_thresholds(thresholds, tpr, fpr):
     intersection_threshold = thresholds[intersection_index]
 
     # Plot sensitivity (TPR) and specificity
-    plt.plot(thresholds, tpr, label="Sensibilité (TPR)", color="blue")
-    plt.plot(thresholds, specificity, label="Spécificité", color="orange")
+    plt.plot(thresholds, tpr, label="Sensitivity (TPR)", color="blue")
+    plt.plot(thresholds, specificity, label="Specificity", color="orange")
 
     # Add vertical line at the approximate intersection point
     plt.axvline(x=intersection_threshold, color='black', linestyle='--',
-                label=f"Seuil d'intersection ~ {intersection_threshold:.2f}")
+                label=f"Intersection threshold ~ {intersection_threshold:.2f}")
 
     # Labels and title
     plt.xlabel("Seuil")
     plt.ylabel("Taux")
-    plt.title("Sensibilité et Spécificité en fonction du seuil")
+    plt.title("Sensitivity and Specificity as a Function of Threshold")
     plt.legend()
     plt.show()
 
@@ -256,13 +248,11 @@ def plot_score_distribution(prediction_scores, true_labels, classes, threshold=0
         classes (list): List of class names, e.g., ['Dog', 'Cat'].
         threshold (float): Threshold to use for binary classification.
     """
-    # Split scores by class for histogram plotting
     dog_scores = [score[0] for score, label in zip(
         prediction_scores, true_labels) if label == 0]
     cat_scores = [score[0] for score, label in zip(
         prediction_scores, true_labels) if label == 1]
 
-    # Plot histogram of scores with different colors for each class
     plt.figure(figsize=(10, 5))
     plt.hist(dog_scores, bins=30, alpha=0.5, color='blue', label=classes[0])
     plt.hist(cat_scores, bins=30, alpha=0.5, color='orange', label=classes[1])
@@ -311,7 +301,6 @@ def plot_confusion_matrix(cm, classes=["Dog", "Cat"], normalize=False, title='Co
 
     plt.imshow(cm, interpolation='nearest', cmap=cmap)
     plt.title(title)
-    # plt.colorbar()
     tick_marks = np.arange(len(classes))
     plt.xticks(tick_marks, classes, rotation=45)
     plt.yticks(tick_marks, classes)
@@ -332,21 +321,18 @@ def plot_confusion_matrix(cm, classes=["Dog", "Cat"], normalize=False, title='Co
 def plot_training_metrics(losses, accuracies, val_accuracies):
     fig, ax = plt.subplots(1, 3, figsize=(16, 5))
 
-    # loss
     ax[0].plot(losses, label='Loss', color='orange')
     ax[0].set_title('Training loss')
     ax[0].set_xlabel('Epoch')
     ax[0].set_ylabel('Loss')
     ax[0].legend()
 
-    # accuracy
     ax[1].plot(accuracies, label='Accuracy', color='blue')
     ax[1].set_title('Batch accuracy')
     ax[1].set_xlabel('Epoch')
     ax[1].set_ylabel('Acc')
     ax[1].legend()
 
-    # validation accuracy
     ax[2].plot(val_accuracies, label='Val accuracy', color='purple')
     ax[2].set_title('Validation Accuracy')
     ax[2].set_xlabel('Epoch')
@@ -359,53 +345,50 @@ def plot_training_metrics(losses, accuracies, val_accuracies):
 
 def show_random_samples(dataset, class_names, num_samples=8):
     """
-    Affiche un échantillon aléatoire d'images d'un dataset PyTorch.
-
-    :param dataset: PyTorch Dataset ou Subset à partir duquel échantillonner
-    :param class_names: Liste des noms des classes (ex. ["Dog", "Cat"])
-    :param num_samples: Nombre d'images à afficher (par défaut : 8)
+    Displays a random sample of images from a PyTorch Dataset or Subset.
+    
+    :param dataset: PyTorch Dataset or Subset from which to sample
+    :param class_names: List of class names (e.g. ["Dog", "Cat"])
+    :param num_samples: Number of images to display (default: 8)
     """
-    # Charger un batch aléatoire
     indices = torch.randint(len(dataset), size=(num_samples,))
     samples = [dataset[i] for i in indices]
 
     fig, axes = plt.subplots(1, num_samples, figsize=(15, 3))
     for i, (image, label) in enumerate(samples):
-        # Enlever la dimension supplémentaire pour les images en niveaux de gris (1 canal)
-        if image.shape[0] == 1:  # Vérifie si l'image est en niveaux de gris
-            # Retire le canal unique pour le niveau de gris
+    
+        if image.shape[0] == 1: 
+           
             image = image.squeeze(0)
 
         axes[i].imshow(image, cmap="gray" if len(
-            image.shape) == 2 else None)  # Mode gris
+            image.shape) == 2 else None)
         axes[i].set_title(class_names[label])
         axes[i].axis("off")
 
     plt.tight_layout()
 
 
-# Fonction d'affichage, adaptée pour les images en couleur
 def show_colored_random_samples(dataset, class_names, num_samples=8):
     """
-    Affiche un échantillon aléatoire d'images d'un dataset PyTorch.
-
-    :param dataset: PyTorch Dataset ou Subset à partir duquel échantillonner
-    :param class_names: Liste des noms des classes (ex. ["Dog", "Cat"])
-    :param num_samples: Nombre d'images à afficher (par défaut : 8)
+    Displays a random sample of images from a PyTorch Dataset or Subset.
+    
+    :param dataset: PyTorch Dataset or Subset from which to sample
+    :param class_names: List of class names (e.g. ["Dog", "Cat"])
+    :param num_samples: Number of images to display (default: 8)
     """
-    # Charger un batch aléatoire
     indices = torch.randint(len(dataset), size=(num_samples,))
     samples = [dataset[i] for i in indices]
 
     fig, axes = plt.subplots(1, num_samples, figsize=(15, 3))
     for i, (image, label) in enumerate(samples):
-        # Convertir les images normalisées en numpy pour affichage
-        image = image.permute(1, 2, 0).numpy()  # Revenir à HxWxC
+      
+        image = image.permute(1, 2, 0).numpy() 
         image = image * [0.229, 0.224, 0.225] + \
-            [0.485, 0.456, 0.406]  # Dé-normalisation
-        image = np.clip(image, 0, 1)  # Limiter les valeurs entre 0 et 1
+            [0.485, 0.456, 0.406] 
+        image = np.clip(image, 0, 1)
 
-        axes[i].imshow(image)  # Afficher en couleur
+        axes[i].imshow(image) 
         axes[i].set_title(class_names[label])
         axes[i].axis("off")
 
